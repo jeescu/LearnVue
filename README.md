@@ -1977,3 +1977,440 @@ const routes = [
 ```
 
 ### Better State Management with Vuex
+![](vuex-flow.png)
+
+Managing state for bigger application using VueX
+
+#### Why a Different State Management May Be Needed
+
+Local state management issue like passing data between children, might not good for bigger applications.
+Using event bus is a way, but it can be pretty crowded. On a bus, changes is very hard to track.
+
+#### Understanding "Centralized State"
+
+The idea is to store in a central place that will hold a state. With this can be change/get data from different components.
+
+#### Using the Centralized State
+
+Create a `store` folder under your `src` folder
+
+```js
+// store.js
+
+import Vue from 'vue';
+import Vuex from 'vuex';
+
+Vue.use(Vuex);
+
+Vuex.store({
+    state: { // not arbitrary name, need it for vuex.
+        counter: 0;
+    }
+});
+```
+
+Set it up on vue instance
+
+```js
+// main.ts
+import { store } from './store/store';
+
+// same with route add it on vue instance config
+new Vue({
+    el: '#app',
+    store, // store: store
+    render: h => h(app)
+});
+```
+
+Access the store from a component
+
+```js
+// $store property is provided from Vue.use(Vuex)
+// this gives us the access to the central store
+this.$store.state.counter++
+
+// and in the displaying the data from another component, use `computed`
+computed: {
+    counter() {
+        return this.$store.state.counter;
+    }
+}
+```
+
+#### Why a Centralized State Alone Won't Fix It
+
+The above solutions still has flaws. Using the a getter (below) can be an eysore. Eventually you will be repeating the code all over the components and does not look good.
+
+```js
+this.$store.state.counter;
+```
+
+There is a better way to solve this issue:
+
+#### Understanding Getters
+
+Instead directly accessing state, we can create a `Getter`
+
+This would get the state from the store, performs calculation it should perform.
+
+#### Using Getters
+
+```js
+Vuex.store({
+    state: { // not arbitrary name, need it for vuex.
+        counter: 0;
+    },
+    getters: {
+        doubleCounter: state => {
+            state.counter * 2; // computed getter of state
+        }
+    }
+});
+
+// To access it from the component
+this.$store.getters.doubleCounter;
+```
+
+#### Mapping Getters to Properties
+
+A vuex helper to set getters directly as computed data.
+
+```js
+import { mapGetters } from 'vuex';
+
+// ...
+
+computed: mapGetters([
+    'doubleCounter',
+    'stringCounter'
+]);
+
+// Can also pass object
+computed: mapGetters({
+    anotherPropName: 'doubleCounter'
+});
+```
+
+Using ES6 **spread** operator, we can still add our own computed properties:
+
+```js
+computed: {
+    ...mapGetters([
+        'doubleCounter',
+        'stringCounter'
+    ]),
+    ourOwnComputedProp() {
+        // ...
+    }
+};
+```
+
+#### Understanding Mutations
+
+If we have getters we also have setters, b ut we call it **Mutations**. because it updates / changes the state.
+
+This mutations are commited that will update a state.
+
+```
+--> COMMIT --> (MUTATIONS) --> CHANGE STATE (STORE)
+```
+
+#### Using Mutations
+
+In the store setup, we can add a `mutations` property.
+
+```js
+Vuex.store({
+    state: { // not arbitrary name, need it for vuex.
+        counter: 0;
+    },
+    // ...
+    mutations: {
+        increment: state => {
+            state.counter++;
+        }
+    }
+});
+
+// To use / commit this use:
+this.$store.commit('increment');
+```
+
+To automatically add this to our methods, we can use `mapMutations`
+
+```js
+import { mapGetters } from 'vuex';
+
+//...
+
+methods: {
+    ...mapMutations([
+        'increment',
+        'decrement'
+    ]),
+    ourOwnMethods() {
+        // ...
+    }
+};
+
+// this.increment
+// @click="increment"
+```
+
+#### Why Mutations Have to Run Synchronously
+
+This is to track mutations, adjustments of your state orderly.
+
+#### How Actions Improve Mutatons
+
+If we need to add asynchrounous task, we have to add an `actions` layer between component and mutations.
+
+```
+component ---> dispatch() ---> ACTIONS ---> commit() ---> MUTATIONS ---> change state ---> STORE
+```
+
+#### Using Actions
+
+In the store setup, we can add a property `actions`. Actions are like methods.
+
+```js
+Vuex.store({
+    state: { // not arbitrary name, need it for vuex.
+        counter: 0;
+    },
+    // ...
+    actions: {
+        // parameter is a context object w/c you have an access to:
+        increment: ({ commit, dispatch, getters }) => {
+            commit('increment');
+        },
+        asyncIncrement: ({ commit }) => {
+            setTimeout(() => {
+                commit('increment');
+                // commit('increment', data) second argument of mutation is the payload / data here
+            }, 2e3);
+        }
+    }
+});
+
+// To use the actions directly
+
+this.$store.dispatch('increment')
+// this.$store.dispatch('increment', payload) pass payload as second argument
+```
+
+#### Mapping Actions to Methods
+
+```js
+import { mapActions } from 'vuex';
+//...
+methods: {
+    ...mapActions([
+        'increment',
+        'decrement'
+    ]),
+    ourOwnMethods() {
+        // ...
+    }
+};
+
+// this.increment
+// @click="increment"
+```
+
+**IMPORTANT NOTE:** You can't pass second argument to actions / mutations, dispatch only accepts 1 arg. Pass an object with many properties you want to use instead.
+
+### More from Vuex
+
+#### Two-Way-Binding (v-model) and Vuex
+
+We cannot use`v-bind` to get and update state value, instead we can do the manual way;
+By setting `:value` and `@input` to the input and setup `computed` and methods for this:
+
+```html
+<input type="text" :value="value" @click="updateValue" />
+```
+
+```js
+//...
+computed: {
+    value() {
+        return this.$store.getters('value');
+    }
+},
+methods: {
+    updateValue(event) {
+        this.$store.dispatch('updateValue', event.target.value);
+    }
+}
+```
+
+There are another exception / rare way, if we want to bind the value.
+By using `get` and `set` methods of computed data.
+
+```js
+//...
+computed: {
+    value: {
+        get() {
+            return this.$store.getters('value');
+        },
+        set(value) {
+            this.$store.dispatch('updateValue', value);
+        }
+    }
+},
+```
+
+So then in HTML
+
+```html
+<input :value="value" />
+```
+
+#### Modularizing the State Management
+
+Improving our store by adding modules folder.
+The idea of this, certain parts may have belong to different part of the appliction.
+
+```
+├── store
+│   ├── modules                 # States grouped together as modules
+│   │   ├── counter.js          # Some specific feature-specific components
+│   │   └── value.js            # shared components across all codes
+│   └── store.js                # main store
+```
+
+Inside the couter file, we can setup the `state`, `getters`, `mutatations` and `actions` similarly.
+
+```js
+// .. counter.js
+
+const state = {
+    counter: 0
+}
+
+const getters = {
+    doubleCounter: state => {
+        return state.counter * 2;
+    }
+}
+
+const mutations = {
+    increment(state, payload) => {
+        state.counter += payload;
+    }
+}
+
+const actions = {
+    increment({ commit }, payload) {
+        commit('increment', payload); // string is the mutation name
+    }
+}
+
+
+export {
+    state,
+    getters,
+    mutations,
+    actions
+}
+```
+
+To use the this module in the main store we will setup a module collector for that. Here, we will use the `module` property on store setup.
+
+```js
+import counter from './modules/counter';
+
+Vuex.store({
+    state: { // not arbitrary name, need it for vuex.
+        counter: 0;
+    },
+    // ...
+    modules: {
+        counter
+    }
+});
+```
+
+#### Using Separate Files
+
+Some actions, mutations, etc. remains in the main store setup, like shareable data for example. With that, the store file will grow bigger. 
+We can separate the actions etc. to separate files.
+
+```
+├── store
+│   ├── modules                 # States grouped together as modules
+│   │   ├── counter.js          # Some specific feature-specific components
+│   │   └── value.js            # shared components across all codes
+│   ├── actions.js          # Some specific feature-specific components
+│   └── store.js                # main store
+```
+
+`actions.js`
+
+```js
+export const updateValue = ({ commit }, payload) => {
+    commit('');
+}
+```
+
+And in the `store.js`
+
+```js
+import * as actions from './actions';
+
+Vuex.store({
+    state: { // not arbitrary name, need it for vuex.
+        counter: 0;
+    },
+    actions,
+    mutations,
+    getters,
+    modules: {
+        // ..
+    }
+});
+```
+
+This makes the folder structure very clean and manageable!
+
+#### Using Namespaces to Avoid Naming Problems
+
+Case like different modules have the same method names. This can cause `[vuex] duplicate key error` error.
+All methods specifically per `actions` etc. should be unique because we gathered it in single store.
+
+Another pattern we can use especially for big applications:
+We will provide action types for this, this assigns a unique name for the methods:
+
+```js
+// types.js
+export const DOUBLE_COUNTER = 'counter/DOUBLE_COUNTER'; // prefixed with the module name!
+
+// counter.js
+import * from types from '../types';
+
+export const getters = {
+    [types.DOUBLE_COUNTER]: state => {
+        return state.counter
+    }
+}
+```
+
+And in the component we can access this (for example a getter)
+We can still use the `mapGetters` by assigning a different name.
+
+```js
+import * as types from '../types';
+
+computed: {
+    ...mapGetters({
+        doubleCounter: types.DOUBLE_COUNTER
+    })
+}
+```
+
+#### Auto-namespacing to Avoid Naming
+
+Check it [here](https://github.com/vuejs/vuex/releases/tag/v2.1.0)
